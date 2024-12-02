@@ -28,10 +28,3 @@ jobs:
         with:
           token: ${{ secrets.CODSPEED_TOKEN }}
           run: "<Insert your benchmark command here>"
-
-name: Run benchmarks
-uses: CodSpeedHQ/action@v3
-env:
-    MY_ENV_VAR: "my-value"
-with:
-    token: ${{ secrets.CODSPEED_TOKEN }}
