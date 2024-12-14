@@ -68,84 +68,80 @@ blinking 25 times, you would have 55312 stones!
 Consider the arrangement of stones in front of you. How many stones will you
 have after blinking 25 times?
 
+How many stones would you have after blinking a total of 75 times?
+
+
 */
 #include <algorithm>
+#include <fstream>
 #include <iostream>
+#include <map>
+#include <sstream>
 #include <string>
 #include <vector>
 
-class PlutonianStones {
-public:
-  // Transform stones according to the specified rules
-  static std::vector<long long>
-  transformStones(const std::vector<long long>& stones) {
-    std::vector<long long> newStones;
+using namespace std;
 
-    for (long long stone : stones) {
-      std::string stoneStr = std::to_string(stone);
+// Global variables to mimic Python script structure
+int p1 = 0, p2 = 0;
+vector<int> D;
+map<pair<long long, int>, long long> DP;
 
-      // Rule 1: If stone is 0, replace with 1
-      if (stone == 0) {
-        newStones.push_back(1);
-      }
-      // Rule 2: If even number of digits, split
-      else if (stoneStr.length() % 2 == 0) {
-        int mid = stoneStr.length() / 2;
-        long long leftStone = std::stoll(stoneStr.substr(0, mid));
-        long long rightStone = std::stoll(stoneStr.substr(mid));
-        newStones.push_back(leftStone);
-        newStones.push_back(rightStone);
-      }
-      // Rule 3: Multiply by 2024
-      else {
-        newStones.push_back(stone * 2024);
-      }
-    }
-
-    return newStones;
+long long solve(long long x, int t) {
+  // Memoization check
+  auto key = make_pair(x, t);
+  auto it = DP.find(key);
+  if (it != DP.end()) {
+    return it->second;
   }
 
-  // Simulate blinks
-  static std::vector<long long>
-  simulateBlinks(std::vector<long long> initialStones, int numBlinks) {
-    for (int i = 0; i < numBlinks; ++i) {
-      initialStones = transformStones(initialStones);
-    }
-    return initialStones;
+  long long ret;
+  if (t == 0) {
+    ret = 1;
+  } else if (x == 0) {
+    ret = solve(1, t - 1);
+  } else if (to_string(x).length() % 2 == 0) {
+    string dstr = to_string(x);
+    int mid = dstr.length() / 2;
+    long long left = stoll(dstr.substr(0, mid));
+    long long right = stoll(dstr.substr(mid));
+    ret = solve(left, t - 1) + solve(right, t - 1);
+  } else {
+    ret = solve(x * 2024, t - 1);
   }
 
-  // Utility function to print stone arrangement
-  static void printStones(const std::vector<long long>& stones) {
-    for (long long stone : stones) {
-      std::cout << stone << " ";
-    }
-    std::cout << std::endl;
+  // Store in memoization map
+  DP[key] = ret;
+  return ret;
+}
+
+long long solve_all(int t) {
+  long long total = 0;
+  for (int x : D) {
+    total += solve(x, t);
   }
-};
+  return total;
+}
 
-int main() {
-  // Example usage
-  std::vector<long long> initialStones = {125, 17};
+int main(int argc, char* argv[]) {
+  // Input file handling
+  string infile = argc >= 2 ? argv[1] : "11.in";
 
-  std::cout << "Initial stones: ";
-  PlutonianStones::printStones(initialStones);
+  // Read input
+  ifstream file(infile);
+  string line;
+  getline(file, line);
 
-  // Simulate blinks and print intermediate states
-  for (int blink = 1; blink <= 6; ++blink) {
-    initialStones = PlutonianStones::transformStones(initialStones);
-    std::cout << "After " << blink << " blinks: ";
-    PlutonianStones::printStones(initialStones);
-    std::cout << "Stone count: " << initialStones.size() << std::endl;
+  // Parse input into vector
+  istringstream iss(line);
+  int num;
+  while (iss >> num) {
+    D.push_back(num);
   }
 
-  // Solve for 25 blinks (puzzle requirement)
-  initialStones = {510613,  358, 84, 40702,
-                   4373582, 2,   0,  1584}; // Reset initial stones
-  auto finalStones = PlutonianStones::simulateBlinks(initialStones, 25);
-  std::cout << "After 25 blinks, total stones: " << finalStones.size()
-            << std::endl;
-  auto finalStones1 = PlutonianStones::simulateBlinks(initialStones, 75);
-  std::cout << "After 75 blinks, total stones: " << finalStones1.size()
-            << std::endl;
+  // Solve and print results
+  cout << solve_all(25) << endl;
+  cout << solve_all(75) << endl;
+
   return 0;
 }
