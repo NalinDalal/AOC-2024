@@ -71,140 +71,88 @@ Figure out how to win as many prizes as possible. What is the fewest tokens you
 would have to spend to win all possible prizes?
 
 */
-
-#include <algorithm>
 #include <fstream>
-#include <functional>
 #include <iostream>
 #include <limits>
-#include <map>
+#include <regex>
 #include <sstream>
 #include <string>
 #include <vector>
+#include <z3++.h>
 
 using namespace std;
 
-// Global variables
-long long p1 = 0, p2 = 0;
+// Utility function to print and copy to clipboard
+void pr(const string &s) {
+  cout << s << endl;
+  // Copying to clipboard can be handled with an external library (like
+  // pyperclip in Python) For now, we will just print the output
+}
 
-// Solve function with memoization
+vector<int> ints(const string &s) {
+  vector<int> result;
+  regex re("\\d+");
+  auto words_begin = sregex_iterator(s.begin(), s.end(), re);
+  auto words_end = sregex_iterator();
+
+  for (auto it = words_begin; it != words_end; ++it) {
+    result.push_back(stoi(it->str()));
+  }
+
+  return result;
+}
+
 long long solve(int ax, int ay, int bx, int by, int px, int py, bool part2) {
   long long P2 = part2 ? 10000000000000LL : 0;
+  px += P2;
+  py += P2;
 
-  pair<double, vector<long long>> best = {numeric_limits<double>::max(), {}};
+  z3::context c;
+  z3::solver solver(c);
 
-  for (int t1 = 0; t1 < 600; t1++) {
-    for (int t2 = 0; t2 < 600; t2++) {
-      long long cost = 3LL * t1 + t2;
-      long long dx = ax * t1 + bx * t2;
-      long long dy = ay * t1 + by * t2;
+  z3::expr t1 = c.int_const("t1");
+  z3::expr t2 = c.int_const("t2");
 
-      if (dx == py && dy == py && dx > 0) {
-        double score = static_cast<double>(dx) / cost;
+  solver.add(t1 > 0);
+  solver.add(t2 > 0);
+  solver.add(t1 * ax + t2 * bx == px);
+  solver.add(t1 * ay + t2 * by == py);
 
-        if (score < best.first) {
-          best = {score, {t1, t2, cost, dx}};
-        }
-      }
-    }
-  }
-
-  if (best.second.empty())
+  if (solver.check() == z3::sat) {
+    z3::model m = solver.get_model();
+    long long ret = m.eval(3 * t1 + t2).as_int64();
+    return ret;
+  } else {
     return 0;
-
-  long long t1 = best.second[0];
-  long long t2 = best.second[1];
-  long long cost = best.second[2];
-  long long dx = best.second[3];
-
-  long long amt = (P2 - 40000) / dx;
-
-  map<pair<long long, long long>, long long> DP;
-
-  function<long long(long long, long long)> f = [&](long long x, long long y) {
-    // Memoization
-    auto key = make_pair(x, y);
-    if (DP.count(key))
-      return DP[key];
-
-    // Base cases
-    if (x == 0 && y == 0)
-      return 0LL;
-    if (x < 0 || y < 0)
-      return 10000000000000LL;
-
-    // Recursive case
-    long long ans = min(3 + f(x - ax, y - ay), 1 + f(x - bx, y - by));
-
-    // Memoize and return
-    return DP[key] = ans;
-  };
-
-  long long ans = f(px + P2 - amt * dx, py + P2 - amt * dx);
-
-  if (ans < 1000000000000000LL) {
-    return ans + amt * cost;
   }
-
-  return 0;
 }
 
 int main(int argc, char *argv[]) {
-  // Input file handling
-  string infile = argc >= 2 ? argv[1] : "13.in";
-
-  // Read input
+  string infile = (argc >= 2) ? argv[1] : "13.in";
   ifstream file(infile);
-  string input, line;
-  string whole_input;
-  while (getline(file, line)) {
-    whole_input += line + "\n";
+  if (!file) {
+    cerr << "Error opening file: " << infile << endl;
+    return 1;
   }
 
-  // Split input into machines
-  vector<string> machines;
-  size_t pos = 0;
-  while ((pos = whole_input.find("\n\n")) != string::npos) {
-    machines.push_back(whole_input.substr(0, pos));
-    whole_input.erase(0, pos + 2);
-  }
-  machines.push_back(whole_input);
+  string D((istreambuf_iterator<char>(file)), istreambuf_iterator<char>());
+  file.close();
 
-  // Process each machine
-  for (const string &machine : machines) {
-    istringstream iss(machine);
-    string a_line, b_line, prize_line;
+  long long p1 = 0, p2 = 0;
+  stringstream ss(D);
+  string machine;
 
-    getline(iss, a_line);
-    getline(iss, b_line);
-    getline(iss, prize_line);
+  while (getline(ss, machine, '\n')) {
+    vector<int> values = ints(machine);
+    int ax = values[0], ay = values[1], bx = values[2], by = values[3];
+    int px = values[4], py = values[5];
 
-    // Parse A button
-    int ax = stoi(a_line.substr(a_line.find("+") + 1,
-                                a_line.find(",") - a_line.find("+") - 1));
-    int ay = stoi(a_line.substr(a_line.rfind("+") + 1,
-                                a_line.length() - a_line.rfind("+") - 1));
-
-    // Parse B button
-    int bx = stoi(b_line.substr(b_line.find("+") + 1,
-                                b_line.find(",") - b_line.find("+") - 1));
-    int by = stoi(b_line.substr(b_line.rfind("+") + 1,
-                                b_line.length() - b_line.rfind("+") - 1));
-
-    // Parse prize coordinates
-    int px = stoi(
-        prize_line.substr(prize_line.find("X=") + 2,
-                          prize_line.find(",") - prize_line.find("X=") - 2));
-    int py = stoi(prize_line.substr(prize_line.find("Y=") + 2));
-
-    // Solve for part 1 and part 2
     p1 += solve(ax, ay, bx, by, px, py, false);
     p2 += solve(ax, ay, bx, by, px, py, true);
   }
 
-  // Print results
-  cout << p1 << endl;
-  cout << p2 << endl;
+  pr(to_string(p1));
+  pr(to_string(p2));
 
   return 0;
 }
