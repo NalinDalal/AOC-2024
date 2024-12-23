@@ -71,88 +71,122 @@ Figure out how to win as many prizes as possible. What is the fewest tokens you
 would have to spend to win all possible prizes?
 
 */
+#include <algorithm>
+#include <climits>
+#include <cmath>
 #include <fstream>
 #include <iostream>
-#include <limits>
-#include <regex>
-#include <sstream>
-#include <string>
+#include <tuple>
 #include <vector>
-#include <z3++.h>
 
 using namespace std;
 
-// Utility function to print and copy to clipboard
-void pr(const string &s) {
-  cout << s << endl;
-  // Copying to clipboard can be handled with an external library (like
-  // pyperclip in Python) For now, we will just print the output
+// Custom GCD function
+long long gcd(long long a, long long b) {
+  a = abs(a);
+  b = abs(b);
+  while (b != 0) {
+    long long temp = b;
+    b = a % b;
+    a = temp;
+  }
+  return a;
 }
 
-vector<int> ints(const string &s) {
-  vector<int> result;
-  regex re("\\d+");
-  auto words_begin = sregex_iterator(s.begin(), s.end(), re);
-  auto words_end = sregex_iterator();
-
-  for (auto it = words_begin; it != words_end; ++it) {
-    result.push_back(stoi(it->str()));
+// Extended Euclidean Algorithm
+long long extended_gcd(long long a, long long b, long long &x, long long &y) {
+  if (b == 0) {
+    x = 1;
+    y = 0;
+    return a;
   }
-
-  return result;
+  long long x1, y1;
+  long long d = extended_gcd(b, a % b, x1, y1);
+  x = y1;
+  y = x1 - y1 * (a / b);
+  return d;
 }
 
-long long solve(int ax, int ay, int bx, int by, int px, int py, bool part2) {
-  long long P2 = part2 ? 10000000000000LL : 0;
-  px += P2;
-  py += P2;
+bool can_reach_target(long long ax, long long ay, long long bx, long long by,
+                      long long px, long long py) {
+  // Use GCD to check if solution exists
+  long long gcd_x = gcd(abs(ax), abs(bx));
+  long long gcd_y = gcd(abs(ay), abs(by));
 
-  z3::context c;
-  z3::solver solver(c);
-
-  z3::expr t1 = c.int_const("t1");
-  z3::expr t2 = c.int_const("t2");
-
-  solver.add(t1 > 0);
-  solver.add(t2 > 0);
-  solver.add(t1 * ax + t2 * bx == px);
-  solver.add(t1 * ay + t2 * by == py);
-
-  if (solver.check() == z3::sat) {
-    z3::model m = solver.get_model();
-    long long ret = m.eval(3 * t1 + t2).as_int64();
-    return ret;
-  } else {
-    return 0;
-  }
+  return (px % gcd_x == 0) && (py % gcd_y == 0);
 }
 
-int main(int argc, char *argv[]) {
-  string infile = (argc >= 2) ? argv[1] : "13.in";
-  ifstream file(infile);
-  if (!file) {
-    cerr << "Error opening file: " << infile << endl;
-    return 1;
+tuple<long long, long long, long long>
+solve_machine(long long ax, long long ay, long long bx, long long by,
+              long long px, long long py, long long max_presses = 100) {
+
+  if (!can_reach_target(ax, ay, bx, by, px, py)) {
+    return make_tuple(-1, -1, LLONG_MAX);
   }
 
-  string D((istreambuf_iterator<char>(file)), istreambuf_iterator<char>());
-  file.close();
-
-  long long p1 = 0, p2 = 0;
-  stringstream ss(D);
-  string machine;
-
-  while (getline(ss, machine, '\n')) {
-    vector<int> values = ints(machine);
-    int ax = values[0], ay = values[1], bx = values[2], by = values[3];
-    int px = values[4], py = values[5];
-
-    p1 += solve(ax, ay, bx, by, px, py, false);
-    p2 += solve(ax, ay, bx, by, px, py, true);
+  for (long long a_presses = 0; a_presses <= max_presses; ++a_presses) {
+    for (long long b_presses = 0; b_presses <= max_presses; ++b_presses) {
+      if (a_presses * ax + b_presses * bx == px &&
+          a_presses * ay + b_presses * by == py) {
+        return make_tuple(a_presses, b_presses, a_presses * 3 + b_presses * 1);
+      }
+    }
   }
 
-  pr(to_string(p1));
-  pr(to_string(p2));
+  return make_tuple(-1, -1, LLONG_MAX);
+}
+
+long long
+solve_claw_machines(vector<tuple<long long, long long, long long, long long,
+                                 long long, long long>> &machines) {
+  vector<tuple<long long, long long, long long>> valid_machines;
+
+  // Find valid machine solutions
+  for (const auto &machine : machines) {
+    auto solution =
+        solve_machine(get<0>(machine), get<1>(machine), get<2>(machine),
+                      get<3>(machine), get<4>(machine), get<5>(machine));
+
+    if (get<2>(solution) != LLONG_MAX) {
+      valid_machines.push_back(solution);
+    }
+  }
+
+  // Try all prize combination strategies
+  long long min_tokens = LLONG_MAX;
+  for (int n_prizes = valid_machines.size(); n_prizes > 0; --n_prizes) {
+    vector<bool> v(valid_machines.size(), false);
+    fill(v.begin(), v.begin() + n_prizes, true);
+
+    do {
+      long long total_tokens = 0;
+      for (size_t i = 0; i < valid_machines.size(); ++i) {
+        if (v[i]) {
+          total_tokens += get<2>(valid_machines[i]);
+        }
+      }
+      min_tokens = min(min_tokens, total_tokens);
+    } while (prev_permutation(v.begin(), v.end()));
+  }
+
+  return min_tokens;
+}
+
+int main() {
+  ifstream input("a.in");
+
+  vector<
+      tuple<long long, long long, long long, long long, long long, long long>>
+      machines;
+
+  long long ax, ay, bx, by, px, py;
+  while (input >> ax >> ay >> bx >> by >> px >> py) {
+    input.ignore(100, ':'); // Ignore rest of line
+    machines.emplace_back(ax, ay, bx, by, px, py);
+  }
+
+  long long result = solve_claw_machines(machines);
+  cout << result << endl;
 
   return 0;
 }
