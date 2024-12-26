@@ -26,6 +26,8 @@ to output a copy of itself?
 #include <iostream>
 #include <queue>
 #include <set>
+#include <sstream>
+#include <tuple>
 #include <unordered_map>
 #include <vector>
 
@@ -33,27 +35,21 @@ using namespace std;
 
 // Custom hash function for pair<int, int>
 struct pair_hash {
-  template <class T1, class T2>
-  size_t operator()(const pair<T1, T2> &pair) const {
-    return hash<T1>()(pair.first) ^ (hash<T2>()(pair.second) << 1);
+  template <class T1, class T2> size_t operator()(const pair<T1, T2> &p) const {
+    size_t h1 = hash<T1>{}(p.first);
+    size_t h2 = hash<T2>{}(p.second);
+    return h1 ^ (h2 << 1);
   }
 };
 
 // Helper function to split a string by a delimiter
 vector<string> split(const string &s, char delimiter) {
   vector<string> tokens;
+  stringstream ss(s);
   string token;
-  for (char c : s) {
-    if (c == delimiter) {
-      if (!token.empty())
-        tokens.push_back(token);
-      token.clear();
-    } else {
-      token += c;
-    }
-  }
-  if (!token.empty())
+  while (getline(ss, token, delimiter)) {
     tokens.push_back(token);
+  }
   return tokens;
 }
 
